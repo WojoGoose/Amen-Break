@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amen Break Generator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Amen Break Generator</h1>
+      <p class="subtitle">Slice, shuffle &amp; loop the legendary break</p>
+    </header>
+
+    <div class="waveform-container">
+      <canvas id="waveform" width="800" height="120"></canvas>
+      <div id="playhead"></div>
+      <div id="slice-markers"></div>
+    </div>
+
+    <div class="transport">
+      <button id="play-btn" class="btn btn-primary" title="Play / Stop">
+        <span id="play-icon">&#9654;</span>
+      </button>
+      <button id="randomize-btn" class="btn" title="Randomize slice order">Shuffle</button>
+      <button id="reset-btn" class="btn" title="Reset to original order">Reset</button>
+    </div>
+
+    <div class="controls">
+      <div class="control-group">
+        <label for="bpm">BPM</label>
+        <input type="range" id="bpm" min="80" max="300" value="137" step="1">
+        <span id="bpm-val" class="val">137</span>
+      </div>
+
+      <div class="control-group">
+        <label for="slices">Slices</label>
+        <select id="slices">
+          <option value="8">8</option>
+          <option value="16" selected>16</option>
+          <option value="32">32</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label for="swing">Swing</label>
+        <input type="range" id="swing" min="0" max="100" value="0" step="1">
+        <span id="swing-val" class="val">0%</span>
+      </div>
+
+      <div class="control-group">
+        <label for="pitch">Pitch</label>
+        <input type="range" id="pitch" min="50" max="200" value="100" step="1">
+        <span id="pitch-val" class="val">100%</span>
+      </div>
+
+      <div class="control-group">
+        <label for="reverb">Reverb</label>
+        <input type="range" id="reverb" min="0" max="100" value="0" step="1">
+        <span id="reverb-val" class="val">0%</span>
+      </div>
+
+      <div class="control-group">
+        <label for="crush">Bit Crush</label>
+        <input type="range" id="crush" min="1" max="16" value="16" step="1">
+        <span id="crush-val" class="val">16</span>
+      </div>
+    </div>
+
+    <div class="slice-grid" id="slice-grid"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
