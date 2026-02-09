@@ -1,9 +1,36 @@
 // ─── Amen Break Generator ───────────────────────────────────────────────────
-// Synthesizes the classic amen break pattern with Web Audio API,
-// slices it into segments, and lets you shuffle & loop them.
+// Loads real amen break WAV samples, slices them into segments,
+// and lets you shuffle & loop them with effects.
 
 (function () {
   'use strict';
+
+  // ─── Sample Library ─────────────────────────────────────────────────────────
+  // Rhythm Lab Amen Vol. 1 — filename: cw_amenNN_BPM.wav
+  const SAMPLES = [
+    { file: 'cw_amen01_175.wav', name: 'Amen 01', bpm: 175 },
+    { file: 'cw_amen02_165.wav', name: 'Amen 02', bpm: 165 },
+    { file: 'cw_amen03_167.wav', name: 'Amen 03', bpm: 167 },
+    { file: 'cw_amen04_170.wav', name: 'Amen 04', bpm: 170 },
+    { file: 'cw_amen05_158.wav', name: 'Amen 05', bpm: 158 },
+    { file: 'cw_amen06_169.wav', name: 'Amen 06', bpm: 169 },
+    { file: 'cw_amen07_172.wav', name: 'Amen 07', bpm: 172 },
+    { file: 'cw_amen08_165.wav', name: 'Amen 08', bpm: 165 },
+    { file: 'cw_amen09_175.wav', name: 'Amen 09', bpm: 175 },
+    { file: 'cw_amen10_135.wav', name: 'Amen 10', bpm: 135 },
+    { file: 'cw_amen11_145.wav', name: 'Amen 11', bpm: 145 },
+    { file: 'cw_amen12_137.wav', name: 'Amen 12', bpm: 137 },
+    { file: 'cw_amen13_173.wav', name: 'Amen 13', bpm: 173 },
+    { file: 'cw_amen14_175.wav', name: 'Amen 14', bpm: 175 },
+    { file: 'cw_amen15_174.wav', name: 'Amen 15', bpm: 174 },
+    { file: 'cw_amen16_167.wav', name: 'Amen 16', bpm: 167 },
+    { file: 'cw_amen17_175.wav', name: 'Amen 17', bpm: 175 },
+    { file: 'cw_amen18_178.wav', name: 'Amen 18', bpm: 178 },
+    { file: 'cw_amen19_172.wav', name: 'Amen 19', bpm: 172 },
+    { file: 'cw_amen20_164.wav', name: 'Amen 20', bpm: 164 },
+  ];
+
+  const SAMPLES_DIR = 'samples/';
 
   // ─── Audio Context ──────────────────────────────────────────────────────────
   let ctx = null;
@@ -11,7 +38,6 @@
   let reverbNode = null;
   let reverbGain = null;
   let dryGain = null;
-  let crushNode = null;
 
   function ensureContext() {
     if (!ctx) {
@@ -19,7 +45,6 @@
       masterGain = ctx.createGain();
       masterGain.gain.value = 0.8;
 
-      // Dry/wet routing for reverb
       dryGain = ctx.createGain();
       dryGain.gain.value = 1;
       reverbGain = ctx.createGain();
@@ -36,7 +61,7 @@
     return ctx;
   }
 
-  // ─── Reverb (simple convolution) ───────────────────────────────────────────
+  // ─── Reverb (convolution with generated impulse) ───────────────────────────
   function createReverb() {
     const convolver = ctx.createConvolver();
     const rate = ctx.sampleRate;
@@ -52,254 +77,21 @@
     return convolver;
   }
 
-  // ─── Drum Synthesis ─────────────────────────────────────────────────────────
-  // Render individual drum hits into short AudioBuffers
-
-  function renderKick(actx) {
-    const dur = 0.35;
-    const sr = actx.sampleRate;
-    const len = Math.ceil(dur * sr);
-    const buf = actx.createBuffer(1, len, sr);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) {
-      const t = i / sr;
-      const env = Math.exp(-t * 12);
-      const freq = 150 * Math.exp(-t * 40) + 40;
-      data[i] = Math.sin(2 * Math.PI * freq * t) * env * 0.9;
+  // ─── Load WAV Sample ──────────────────────────────────────────────────────
+  async function loadSample(filename) {
+    const url = SAMPLES_DIR + filename;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error('Failed to load ' + filename + '. Make sure WAV files are in the samples/ folder.');
     }
-    return buf;
-  }
-
-  function renderSnare(actx) {
-    const dur = 0.25;
-    const sr = actx.sampleRate;
-    const len = Math.ceil(dur * sr);
-    const buf = actx.createBuffer(1, len, sr);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) {
-      const t = i / sr;
-      // body
-      const bodyEnv = Math.exp(-t * 20);
-      const body = Math.sin(2 * Math.PI * 185 * t) * 0.5 +
-                   Math.sin(2 * Math.PI * 349 * t) * 0.3;
-      // noise rattle
-      const noiseEnv = Math.exp(-t * 15);
-      const noise = (Math.random() * 2 - 1);
-      data[i] = (body * bodyEnv + noise * noiseEnv * 0.7) * 0.8;
-    }
-    return buf;
-  }
-
-  function renderGhostSnare(actx) {
-    const dur = 0.12;
-    const sr = actx.sampleRate;
-    const len = Math.ceil(dur * sr);
-    const buf = actx.createBuffer(1, len, sr);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) {
-      const t = i / sr;
-      const bodyEnv = Math.exp(-t * 35);
-      const body = Math.sin(2 * Math.PI * 200 * t) * 0.3;
-      const noiseEnv = Math.exp(-t * 30);
-      const noise = (Math.random() * 2 - 1);
-      data[i] = (body * bodyEnv + noise * noiseEnv * 0.4) * 0.45;
-    }
-    return buf;
-  }
-
-  function renderClosedHat(actx) {
-    const dur = 0.08;
-    const sr = actx.sampleRate;
-    const len = Math.ceil(dur * sr);
-    const buf = actx.createBuffer(1, len, sr);
-    const data = buf.getChannelData(0);
-    const ratios = [2, 3, 4.16, 5.43, 6.79, 8.21];
-    for (let i = 0; i < len; i++) {
-      const t = i / sr;
-      const env = Math.exp(-t * 60);
-      let sig = 0;
-      for (const r of ratios) {
-        sig += Math.sign(Math.sin(2 * Math.PI * 40 * r * t));
-      }
-      // bandpass-ish: subtract low freq content with simple HP
-      data[i] = sig / ratios.length * env * 0.35;
-    }
-    // Simple one-pole highpass
-    let prev = 0;
-    let prevOut = 0;
-    const rc = 1 / (2 * Math.PI * 7000);
-    const dt = 1 / sr;
-    const alpha = rc / (rc + dt);
-    for (let i = 0; i < len; i++) {
-      const inp = data[i];
-      prevOut = alpha * (prevOut + inp - prev);
-      prev = inp;
-      data[i] = prevOut;
-    }
-    return buf;
-  }
-
-  function renderOpenHat(actx) {
-    const dur = 0.3;
-    const sr = actx.sampleRate;
-    const len = Math.ceil(dur * sr);
-    const buf = actx.createBuffer(1, len, sr);
-    const data = buf.getChannelData(0);
-    const ratios = [2, 3, 4.16, 5.43, 6.79, 8.21];
-    for (let i = 0; i < len; i++) {
-      const t = i / sr;
-      const env = Math.exp(-t * 8);
-      let sig = 0;
-      for (const r of ratios) {
-        sig += Math.sign(Math.sin(2 * Math.PI * 40 * r * t));
-      }
-      data[i] = sig / ratios.length * env * 0.35;
-    }
-    let prev = 0;
-    let prevOut = 0;
-    const rc = 1 / (2 * Math.PI * 6000);
-    const dt = 1 / sr;
-    const alpha = rc / (rc + dt);
-    for (let i = 0; i < len; i++) {
-      const inp = data[i];
-      prevOut = alpha * (prevOut + inp - prev);
-      prev = inp;
-      data[i] = prevOut;
-    }
-    return buf;
-  }
-
-  function renderRide(actx) {
-    const dur = 0.2;
-    const sr = actx.sampleRate;
-    const len = Math.ceil(dur * sr);
-    const buf = actx.createBuffer(1, len, sr);
-    const data = buf.getChannelData(0);
-    const ratios = [2, 3, 4.16, 5.43, 6.79, 8.21];
-    for (let i = 0; i < len; i++) {
-      const t = i / sr;
-      const env = Math.exp(-t * 15);
-      let sig = 0;
-      for (const r of ratios) {
-        sig += Math.sign(Math.sin(2 * Math.PI * 55 * r * t));
-      }
-      data[i] = sig / ratios.length * env * 0.22;
-    }
-    let prev = 0;
-    let prevOut = 0;
-    const rc = 1 / (2 * Math.PI * 5000);
-    const dt = 1 / sr;
-    const alpha = rc / (rc + dt);
-    for (let i = 0; i < len; i++) {
-      const inp = data[i];
-      prevOut = alpha * (prevOut + inp - prev);
-      prev = inp;
-      data[i] = prevOut;
-    }
-    return buf;
-  }
-
-  // ─── Amen Break Pattern ─────────────────────────────────────────────────────
-  // 2-bar pattern at 32 sixteenth-note resolution (then looped to fill 4 bars)
-  // K = kick, S = snare, s = ghost snare, h = closed hat, H = open hat, r = ride
-  // Each step is a 16th note. We define 2 bars (32 steps), pattern is 2 bars.
-
-  // The classic amen break - 2 bar pattern
-  // Bar 1: standard funk groove
-  // Bar 2: syncopated with displaced snares
-  const PATTERN_STEPS = 32; // 2 bars of 16th notes
-
-  // Each entry: [step, hitType]
-  // Steps 0-15 = bar 1, steps 16-31 = bar 2
-  const amenPattern = [
-    // ── Bar 1 ──
-    // Beat 1
-    [0, 'kick'], [0, 'ride'],
-    [1, 'ride'],
-    [2, 'hat'], [2, 'ride'],
-    [3, 'ride'],
-    // Beat 2
-    [4, 'snare'], [4, 'ride'],
-    [5, 'ride'],
-    [6, 'kick'], [6, 'ride'],
-    [7, 'ride'],
-    // Beat 3
-    [8, 'hat'],
-    [9, 'ride'],
-    [10, 'snare'], [10, 'ride'],
-    [11, 'ride'],
-    // Beat 4
-    [12, 'kick'], [12, 'ride'],
-    [13, 'ghost'],
-    [14, 'hat'], [14, 'ride'],
-    [15, 'ghost'],
-
-    // ── Bar 2 ──
-    // Beat 1
-    [16, 'kick'], [16, 'ride'],
-    [17, 'ride'],
-    [18, 'hat'], [18, 'ride'],
-    [19, 'ride'],
-    // Beat 2
-    [20, 'snare'], [20, 'ride'],
-    [21, 'kick'], [21, 'ride'],
-    [22, 'ride'],
-    [23, 'ghost'],
-    // Beat 3
-    [24, 'hat'],
-    [25, 'ride'],
-    [26, 'kick'], [26, 'ride'],
-    [27, 'openhat'],
-    // Beat 4
-    [28, 'snare'], [28, 'ride'],
-    [29, 'ghost'],
-    [30, 'kick'], [30, 'ride'],
-    [31, 'ghost'],
-  ];
-
-  // ─── Render Full Break to Buffer ────────────────────────────────────────────
-
-  function renderAmenBreak(actx, bpm) {
-    const stepDur = 60 / bpm / 4; // duration of one 16th note
-    const totalDur = PATTERN_STEPS * stepDur;
-    const sr = actx.sampleRate;
-    const totalSamples = Math.ceil(totalDur * sr);
-    const buffer = actx.createBuffer(1, totalSamples, sr);
-    const output = buffer.getChannelData(0);
-
-    // Pre-render each drum sound
-    const drums = {
-      kick: renderKick(actx),
-      snare: renderSnare(actx),
-      ghost: renderGhostSnare(actx),
-      hat: renderClosedHat(actx),
-      openhat: renderOpenHat(actx),
-      ride: renderRide(actx),
-    };
-
-    // Mix hits into the output buffer
-    for (const [step, type] of amenPattern) {
-      const hitBuf = drums[type];
-      if (!hitBuf) continue;
-      const hitData = hitBuf.getChannelData(0);
-      const offsetSample = Math.round(step * stepDur * sr);
-      for (let i = 0; i < hitData.length && (offsetSample + i) < totalSamples; i++) {
-        output[offsetSample + i] += hitData[i];
-      }
-    }
-
-    // Soft-clip to prevent distortion
-    for (let i = 0; i < totalSamples; i++) {
-      output[i] = Math.tanh(output[i]);
-    }
-
-    return buffer;
+    const arrayBuffer = await response.arrayBuffer();
+    return await ctx.decodeAudioData(arrayBuffer);
   }
 
   // ─── State ──────────────────────────────────────────────────────────────────
-
-  let amenBuffer = null;       // the rendered full break AudioBuffer
-  let sliceOrder = [];         // current order of slices to play
+  let amenBuffer = null;       // the loaded WAV AudioBuffer
+  let sampleBpm = 137;         // native BPM of the loaded sample
+  let sliceOrder = [];
   let numSlices = 16;
   let isPlaying = false;
   let schedulerTimer = null;
@@ -309,9 +101,10 @@
   let pitchRate = 1.0;
   let swingAmount = 0;
   let crushBits = 16;
+  let isLoading = false;
 
   // ─── DOM refs ───────────────────────────────────────────────────────────────
-
+  const sampleSelect = document.getElementById('sample-select');
   const playBtn = document.getElementById('play-btn');
   const playIcon = document.getElementById('play-icon');
   const randomizeBtn = document.getElementById('randomize-btn');
@@ -332,20 +125,55 @@
   const sliceMarkersDiv = document.getElementById('slice-markers');
   const sliceGridDiv = document.getElementById('slice-grid');
 
-  // ─── Rebuild break & slices ─────────────────────────────────────────────────
+  // ─── Populate Sample Dropdown ──────────────────────────────────────────────
+  function populateSampleSelect() {
+    SAMPLES.forEach((s, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = s.name + ' (' + s.bpm + ' BPM)';
+      sampleSelect.appendChild(opt);
+    });
+  }
 
-  function rebuild() {
+  // ─── Load & Rebuild ────────────────────────────────────────────────────────
+  async function loadAndRebuild(sampleIndex) {
     ensureContext();
-    amenBuffer = renderAmenBreak(ctx, currentBpm);
+    isLoading = true;
+    playBtn.disabled = true;
+    playBtn.textContent = '...';
+
+    try {
+      const sample = SAMPLES[sampleIndex];
+      amenBuffer = await loadSample(sample.file);
+      sampleBpm = sample.bpm;
+
+      // Set BPM slider to the sample's native BPM
+      currentBpm = sample.bpm;
+      bpmSlider.value = currentBpm;
+      bpmVal.textContent = currentBpm;
+
+      numSlices = parseInt(sliceSelect.value, 10);
+      sliceOrder = Array.from({ length: numSlices }, (_, i) => i);
+      drawWaveform();
+      drawSliceMarkers();
+      buildSliceGrid();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      isLoading = false;
+      playBtn.disabled = false;
+      playBtn.innerHTML = '<span id="play-icon">&#9654;</span>';
+    }
+  }
+
+  function rebuildSlices() {
     numSlices = parseInt(sliceSelect.value, 10);
     sliceOrder = Array.from({ length: numSlices }, (_, i) => i);
-    drawWaveform();
     drawSliceMarkers();
     buildSliceGrid();
   }
 
   // ─── Waveform Drawing ──────────────────────────────────────────────────────
-
   function drawWaveform() {
     const cvs = waveformCanvas;
     const c = cvs.getContext('2d');
@@ -358,13 +186,13 @@
     const h = rect.height;
     c.clearRect(0, 0, w, h);
 
+    c.fillStyle = '#0d0d0d';
+    c.fillRect(0, 0, w, h);
+
     if (!amenBuffer) return;
     const data = amenBuffer.getChannelData(0);
     const step = Math.ceil(data.length / w);
     const mid = h / 2;
-
-    c.fillStyle = '#0d0d0d';
-    c.fillRect(0, 0, w, h);
 
     c.beginPath();
     c.strokeStyle = '#ff6b00';
@@ -397,7 +225,6 @@
   }
 
   // ─── Slice Grid ─────────────────────────────────────────────────────────────
-
   function buildSliceGrid() {
     sliceGridDiv.innerHTML = '';
     for (let i = 0; i < numSlices; i++) {
@@ -415,25 +242,33 @@
   }
 
   // ─── Playback Scheduling ───────────────────────────────────────────────────
+  // The buffer contains the full break at its native BPM.
+  // We slice it evenly by time. BPM changes are achieved via playback rate.
+
+  function getBpmRate() {
+    return currentBpm / sampleBpm;
+  }
 
   function getSliceDuration() {
-    const stepDur = 60 / currentBpm / 4;
-    const stepsPerSlice = PATTERN_STEPS / numSlices;
-    return stepsPerSlice * stepDur;
+    // Duration of one slice at the CURRENT bpm (accounting for time-stretch)
+    const totalDur = amenBuffer.duration;
+    return (totalDur / numSlices) / getBpmRate();
   }
 
   function getSliceOffset(sliceIndex) {
-    const stepDur = 60 / currentBpm / 4;
-    const stepsPerSlice = PATTERN_STEPS / numSlices;
-    return sliceIndex * stepsPerSlice * stepDur;
+    const totalDur = amenBuffer.duration;
+    return (sliceIndex / numSlices) * totalDur;
   }
 
   function scheduleSlice(sliceIdx, when) {
     const src = ctx.createBufferSource();
     src.buffer = amenBuffer;
-    src.playbackRate.value = pitchRate;
 
-    // Bit crushing via waveshaper if needed
+    // Combined rate: BPM adjustment * pitch knob
+    const combinedRate = getBpmRate() * pitchRate;
+    src.playbackRate.value = combinedRate;
+
+    // Bit crushing via waveshaper
     let node = src;
     if (crushBits < 16) {
       const crusher = ctx.createWaveShaper();
@@ -451,20 +286,21 @@
     node.connect(masterGain);
 
     const offset = getSliceOffset(sliceOrder[sliceIdx]);
-    const duration = getSliceDuration();
-    src.start(when, offset, duration / pitchRate);
+    const nativeDuration = amenBuffer.duration / numSlices;
+    // Play the slice segment from the buffer
+    src.start(when, offset, nativeDuration);
   }
 
   function startScheduler() {
-    const lookahead = 0.1; // seconds
-    const interval = 25;   // ms
+    const lookahead = 0.1;
+    const interval = 25;
 
     schedulerTimer = setInterval(() => {
       while (nextSliceTime < ctx.currentTime + lookahead) {
         scheduleSlice(nextSliceIndex, nextSliceTime);
 
-        // Apply swing: delay every other slice slightly
         let dur = getSliceDuration() / pitchRate;
+        // Swing
         if (swingAmount > 0 && nextSliceIndex % 2 === 0) {
           dur += dur * (swingAmount / 100) * 0.3;
         } else if (swingAmount > 0 && nextSliceIndex % 2 === 1) {
@@ -477,6 +313,8 @@
     }, interval);
   }
 
+  let playStartTime = 0;
+
   function startPlayheadAnimation() {
     function animate() {
       if (!isPlaying) {
@@ -485,12 +323,12 @@
       }
       playhead.style.opacity = '1';
 
-      const totalDur = (getSliceDuration() / pitchRate) * numSlices;
+      const sliceDur = getSliceDuration() / pitchRate;
+      const totalDur = sliceDur * numSlices;
       const loopTime = (ctx.currentTime - playStartTime) % totalDur;
       const pct = (loopTime / totalDur) * 100;
       playhead.style.left = pct + '%';
 
-      // Highlight current slice
       const currentSlice = Math.floor((loopTime / totalDur) * numSlices);
       highlightSlice(currentSlice);
 
@@ -499,14 +337,12 @@
     requestAnimationFrame(animate);
   }
 
-  let playStartTime = 0;
-
   function play() {
+    if (!amenBuffer || isLoading) return;
     ensureContext();
-    if (!amenBuffer) rebuild();
     isPlaying = true;
     playBtn.classList.add('playing');
-    playIcon.innerHTML = '&#9632;'; // stop icon
+    playIcon.innerHTML = '&#9632;';
     nextSliceIndex = 0;
     nextSliceTime = ctx.currentTime + 0.05;
     playStartTime = nextSliceTime;
@@ -517,7 +353,8 @@
   function stop() {
     isPlaying = false;
     playBtn.classList.remove('playing');
-    playIcon.innerHTML = '&#9654;'; // play icon
+    const icon = document.getElementById('play-icon');
+    if (icon) icon.innerHTML = '&#9654;';
     if (schedulerTimer) {
       clearInterval(schedulerTimer);
       schedulerTimer = null;
@@ -527,7 +364,6 @@
   }
 
   // ─── Shuffle ────────────────────────────────────────────────────────────────
-
   function shuffleSlices() {
     for (let i = sliceOrder.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -542,33 +378,31 @@
   }
 
   // ─── Event Listeners ───────────────────────────────────────────────────────
-
   playBtn.addEventListener('click', () => {
     if (isPlaying) stop(); else play();
   });
 
-  randomizeBtn.addEventListener('click', () => {
-    shuffleSlices();
-  });
+  randomizeBtn.addEventListener('click', () => shuffleSlices());
+  resetBtn.addEventListener('click', () => resetSlices());
 
-  resetBtn.addEventListener('click', () => {
-    resetSlices();
+  sampleSelect.addEventListener('change', () => {
+    const wasPlaying = isPlaying;
+    if (wasPlaying) stop();
+    loadAndRebuild(parseInt(sampleSelect.value, 10)).then(() => {
+      if (wasPlaying) play();
+    });
   });
 
   bpmSlider.addEventListener('input', () => {
     currentBpm = parseInt(bpmSlider.value, 10);
     bpmVal.textContent = currentBpm;
-    // Re-render the break buffer at new BPM
-    const wasPlaying = isPlaying;
-    if (wasPlaying) stop();
-    rebuild();
-    if (wasPlaying) play();
+    // BPM changes take effect on next scheduled slice — no rebuild needed
   });
 
   sliceSelect.addEventListener('change', () => {
     const wasPlaying = isPlaying;
     if (wasPlaying) stop();
-    rebuild();
+    rebuildSlices();
     if (wasPlaying) play();
   });
 
@@ -597,13 +431,26 @@
     crushVal.textContent = crushBits;
   });
 
-  // Handle window resize
   window.addEventListener('resize', () => {
     if (amenBuffer) drawWaveform();
   });
 
   // ─── Init ───────────────────────────────────────────────────────────────────
-  // Defer context creation until first user interaction (autoplay policy)
-  rebuild();
+  populateSampleSelect();
+  // Draw empty waveform
+  drawWaveform();
+
+  // Auto-load the first sample on first user click (autoplay policy)
+  let initialized = false;
+  document.addEventListener('click', function init() {
+    if (initialized) return;
+    initialized = true;
+    loadAndRebuild(0);
+  }, { once: false });
+
+  // Also try loading immediately (works if served from localhost)
+  loadAndRebuild(0).catch(() => {
+    // Will retry on first click
+  });
 
 })();
